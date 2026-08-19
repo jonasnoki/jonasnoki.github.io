@@ -2,7 +2,10 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eceae5">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Alles Gute zum Geburtstag, Charline!</title>
 <meta name="description" content="Eine Heuraufe mit Zeitsteuerung, als 3D-Modell zum Ansehen.">
 <style>
@@ -13,17 +16,22 @@
     --akzent: #c8862c;
   }
   * { box-sizing: border-box; }
+  html { height: 100%; }
   body {
     margin: 0;
-    min-height: 240vh;                 /* Scrollraum fuer den Start */
+    min-height: 240svh;                /* Scrollraum fuer den Start */
+    overscroll-behavior: none;         /* kein Gummiband, kein Pull-to-Refresh */
+    overflow-x: hidden;
     background: var(--bg);
     color: var(--tinte);
     font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  body.film { min-height: 100%; height: 100%; overflow: hidden; }
+  body.film { min-height: 100%; height: 100dvh; overflow: hidden; }
 
   /* ------------------------------------------------ Buehne */
+  /* inset:0 fuellt bei viewport-fit=cover die ganze Anzeige, auch unter
+     Notch und Home-Indikator, ohne einen Rollbalken zu erzeugen. */
   #szene { position: fixed; inset: 0; z-index: 0; }
   canvas { display: block; }
 
@@ -31,7 +39,9 @@
   #hero {
     position: fixed; inset: 0; z-index: 2;
     display: grid; place-items: center; text-align: center;
-    padding: 24px;
+    padding:
+      calc(24px + env(safe-area-inset-top))    calc(24px + env(safe-area-inset-right))
+      calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
     background:
       radial-gradient(120% 90% at 50% 40%,
         rgba(236,234,229,.97) 0%,
@@ -57,7 +67,8 @@
   }
 
   #wink {
-    position: fixed; left: 50%; bottom: 34px; z-index: 3;
+    position: fixed; left: 50%; z-index: 3;
+    bottom: calc(34px + env(safe-area-inset-bottom));
     transform: translateX(-50%);
     display: flex; flex-direction: column; align-items: center; gap: 10px;
     font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
@@ -90,12 +101,17 @@
   }
   .karte.da { opacity: 1; transform: none; pointer-events: auto; }
 
-  #titel { top: 20px; left: 20px; padding: 13px 18px; max-width: 300px; }
+  #titel {
+    top:  calc(20px + env(safe-area-inset-top));
+    left: calc(20px + env(safe-area-inset-left));
+    padding: 13px 18px; max-width: 300px;
+  }
   #titel b { display: block; font-size: 15px; font-weight: 600; }
   #titel span { font-size: 12.5px; color: #9ea3ab; }
 
   #stand {
-    left: 50%; bottom: 24px; transform: translate(-50%, 10px);
+    left: 50%; bottom: calc(24px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 10px);
     padding: 10px 20px; display: flex; align-items: center; gap: 11px;
     font-size: 13.5px; white-space: nowrap;
   }
@@ -108,7 +124,9 @@
   #stand.offen .punkt { background: #6d9a4a; }
 
   #fuss {
-    right: 20px; bottom: 24px; padding: 9px 14px;
+    right:  calc(20px + env(safe-area-inset-right));
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    padding: 9px 14px;
     font-size: 12px; color: #9ea3ab;
   }
   #fuss a { color: #9ea3ab; text-decoration: none; border-bottom: 1px solid #3a3e45; }
@@ -378,8 +396,20 @@ function starte() {
 addEventListener('scroll', () => { if (scrollY > innerHeight * 0.12) starte(); },
                  { passive: true });
 addEventListener('wheel', starte, { passive: true });
-eWink.addEventListener('click', starte);
-document.getElementById('geschenk').addEventListener('click', starte);
+// Echtes Vollbild braucht eine Nutzergeste. Ein Klick ist eine.
+// Scrollen ist keine, deshalb nur hier. Lehnt der Browser ab, laeuft
+// die Seite trotzdem randlos weiter.
+async function vollbild() {
+  const el = document.documentElement;
+  try {
+    if (!document.fullscreenElement && el.requestFullscreen)
+      await el.requestFullscreen({ navigationUI: 'hide' });
+  } catch { /* Browser darf ablehnen */ }
+}
+
+eWink.addEventListener('click', () => { vollbild(); starte(); });
+document.getElementById('geschenk')
+        .addEventListener('click', () => { vollbild(); starte(); });
 addEventListener('keydown', ev => {
   if (['ArrowDown', 'PageDown', ' ', 'Enter'].includes(ev.key)) starte();
 });
@@ -388,11 +418,21 @@ addEventListener('keydown', ev => {
 bahn.addEventListener('start', () => { bahn.autoRotate = false; });
 
 // ------------------------------------------------ Schleife
-addEventListener('resize', () => {
-  kamera.aspect = innerWidth / innerHeight;
+function passeAn() {
+  const b = document.getElementById('szene').getBoundingClientRect();
+  const w = Math.round(b.width)  || innerWidth;
+  const h = Math.round(b.height) || innerHeight;
+  kamera.aspect = w / h;
   kamera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+  renderer.setSize(w, h, false);
+  renderer.domElement.style.width  = w + 'px';
+  renderer.domElement.style.height = h + 'px';
+}
+addEventListener('resize', passeAn);
+addEventListener('orientationchange', () => setTimeout(passeAn, 120));
+document.addEventListener('fullscreenchange', () => setTimeout(passeAn, 60));
+if (window.visualViewport) visualViewport.addEventListener('resize', passeAn);
+passeAn();
 
 const takt = new THREE.Clock();
 renderer.setAnimationLoop(() => {
