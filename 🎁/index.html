@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alles Gute zum Geburtstag, Charline!</title>
+<meta name="description" content="Eine Heuraufe mit Zeitsteuerung, als 3D-Modell zum Ansehen.">
+<style>
+  :root {
+    --bg:     #eceae5;
+    --tinte:  #23211d;
+    --leise:  #7c776e;
+    --akzent: #c8862c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 240vh;                 /* Scrollraum fuer den Start */
+    background: var(--bg);
+    color: var(--tinte);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body.film { min-height: 100%; height: 100%; overflow: hidden; }
+
+  /* ------------------------------------------------ Buehne */
+  #szene { position: fixed; inset: 0; z-index: 0; }
+  canvas { display: block; }
+
+  /* ------------------------------------------------ Begruessung */
+  #hero {
+    position: fixed; inset: 0; z-index: 2;
+    display: grid; place-items: center; text-align: center;
+    padding: 24px;
+    background:
+      radial-gradient(120% 90% at 50% 40%,
+        rgba(236,234,229,.97) 0%,
+        rgba(236,234,229,.90) 45%,
+        rgba(236,234,229,.70) 100%);
+    transition: opacity .9s ease, transform .9s ease;
+  }
+  #hero.weg { opacity: 0; transform: scale(1.04); pointer-events: none; }
+
+  #geschenk {
+    font-size: clamp(88px, 19vw, 220px);
+    line-height: 1;
+    background: none; border: 0; padding: 0;
+    cursor: pointer;
+    filter: drop-shadow(0 14px 26px rgba(0,0,0,.16));
+    animation: wippen 3.2s ease-in-out infinite;
+    transition: transform .25s ease;
+  }
+  #geschenk:hover { transform: scale(1.06); }
+  @keyframes wippen {
+    0%, 100% { transform: translateY(0)    rotate(-1.5deg); }
+    50%      { transform: translateY(-14px) rotate(1.5deg); }
+  }
+
+  #wink {
+    position: fixed; left: 50%; bottom: 34px; z-index: 3;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--leise); cursor: pointer;
+    background: none; border: 0; font-family: inherit;
+    transition: opacity .5s;
+  }
+  #wink.weg { opacity: 0; pointer-events: none; }
+  #wink .pfeil {
+    width: 22px; height: 22px; border-right: 2px solid var(--leise);
+    border-bottom: 2px solid var(--leise); transform: rotate(45deg);
+    animation: sinken 1.9s ease-in-out infinite;
+  }
+  @keyframes sinken {
+    0%, 100% { transform: rotate(45deg) translate(0, 0);     opacity: .45; }
+    50%      { transform: rotate(45deg) translate(4px, 4px); opacity: 1;   }
+  }
+
+  /* ------------------------------------------------ Anzeige im Film */
+  .karte {
+    position: fixed; z-index: 3;
+    background: rgba(28,30,34,.90);
+    backdrop-filter: blur(12px);
+    border: 1px solid #3a3e45;
+    border-radius: 13px;
+    color: #f2f1ee;
+    opacity: 0; transform: translateY(10px);
+    transition: opacity .7s ease, transform .7s ease;
+    pointer-events: none;
+  }
+  .karte.da { opacity: 1; transform: none; pointer-events: auto; }
+
+  #titel { top: 20px; left: 20px; padding: 13px 18px; max-width: 300px; }
+  #titel b { display: block; font-size: 15px; font-weight: 600; }
+  #titel span { font-size: 12.5px; color: #9ea3ab; }
+
+  #stand {
+    left: 50%; bottom: 24px; transform: translate(-50%, 10px);
+    padding: 10px 20px; display: flex; align-items: center; gap: 11px;
+    font-size: 13.5px; white-space: nowrap;
+  }
+  #stand.da { transform: translate(-50%, 0); }
+  #stand .punkt {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--akzent); flex: 0 0 auto;
+    transition: background .4s;
+  }
+  #stand.offen .punkt { background: #6d9a4a; }
+
+  #fuss {
+    right: 20px; bottom: 24px; padding: 9px 14px;
+    font-size: 12px; color: #9ea3ab;
+  }
+  #fuss a { color: #9ea3ab; text-decoration: none; border-bottom: 1px solid #3a3e45; }
+  #fuss a:hover { color: #f2f1ee; }
+
+  @media (max-width: 720px) {
+    #fuss { display: none; }
+    #titel { max-width: calc(100vw - 40px); }
+  }
+</style>
+</head>
+<body>
+
+<div id="szene"></div>
+
+<div id="hero">
+  <button id="geschenk" aria-label="Geschenk oeffnen">&#127873;</button>
+</div>
+
+<button id="wink" aria-label="Weiter">
+  <span>Scrollen</span>
+  <span class="pfeil"></span>
+</button>
+
+<div class="karte" id="titel">
+  <b>Heuraufe mit Zeitsteuerung</b>
+  <span>Rundballenraufe, 2,00 × 2,00 m, mit Pultdach</span>
+</div>
+
+<div class="karte" id="stand">
+  <span class="punkt"></span><span id="standtext">Vorhang geschlossen</span>
+</div>
+
+<div class="karte" id="fuss">
+  <a href="heuraufe.scad">Modell: heuraufe.scad</a>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls }   from 'three/addons/controls/OrbitControls.js';
+import { STLLoader }       from 'three/addons/loaders/STLLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// =====================================================================
+// Masse aus heuraufe.scad, in Millimetern
+// =====================================================================
+const M = {
+  rahmenZu: 2200,   // Rahmen geschlossen
+  rahmenAuf: 900,   // Rahmen offen
+  gazeUk:    400,   // Unterkante der Gaze, fest
+  welleZ:   2400,   // Achse der Wickelwelle
+};
+M.hub   = M.rahmenZu - M.rahmenAuf;
+M.gazeH = M.rahmenZu - M.gazeUk;
+M.gurtH = M.welleZ  - M.rahmenZu;
+
+// =====================================================================
+// Szene
+// =====================================================================
+const szene = new THREE.Scene();
+szene.background = new THREE.Color(0xeceae5);
+szene.fog = new THREE.Fog(0xeceae5, 30, 78);
+
+const kamera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 260);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.92;
+document.getElementById('szene').appendChild(renderer.domElement);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+szene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+szene.environmentIntensity = 0.32;
+
+const bahn = new OrbitControls(kamera, renderer.domElement);
+bahn.enableDamping = true;
+bahn.dampingFactor = 0.06;
+bahn.minDistance = 3.5;
+bahn.maxDistance = 30;
+bahn.maxPolarAngle = Math.PI * 0.495;
+bahn.enabled = false;                      // erst nach der Kamerafahrt
+
+szene.add(new THREE.HemisphereLight(0xdfe7f2, 0x8d8271, 0.85));
+const sonne = new THREE.DirectionalLight(0xfff2dc, 2.9);
+sonne.position.set(7, 11, 5);
+sonne.castShadow = true;
+sonne.shadow.mapSize.set(2048, 2048);
+Object.assign(sonne.shadow.camera,
+  { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 34 });
+szene.add(sonne);
+
+const boden = new THREE.Mesh(
+  new THREE.CircleGeometry(40, 64),
+  new THREE.MeshStandardMaterial({ color: 0xc3baa6, roughness: 1 })
+);
+boden.rotation.x = -Math.PI/2;
+boden.receiveShadow = true;
+szene.add(boden);
+
+// =====================================================================
+// Modell.  STL in Millimetern, Z oben.  Gruppe dreht auf Meter mit Y oben.
+// =====================================================================
+const wurzel = new THREE.Group();
+wurzel.rotation.x = -Math.PI/2;
+wurzel.scale.setScalar(0.001);
+szene.add(wurzel);
+
+const holz  = c      => new THREE.MeshStandardMaterial({ color: c, roughness: .85 });
+const stahl = (c, r) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: .85 });
+
+const TEILE = {
+  tragwerk:   holz(0xb0895c),
+  kasten:     holz(0x93683f),
+  dach:       stahl(0x646b73, .5),
+  welle:      stahl(0xb4b8bd, .32),
+  rahmen:     stahl(0xd2d5d8, .26),
+  gurte_fest: holz(0xdcdad4),
+  gurte_hub:  holz(0xdcdad4),
+  ballen:     holz(0xd6bd72),
+  gaze:       new THREE.MeshStandardMaterial({
+                color: 0x76835c, roughness: .95, transparent: true,
+                opacity: .42, side: THREE.DoubleSide, depthWrite: false }),
+};
+
+const lader = new STLLoader();
+const netz = {};
+let bereit = false;
+
+Promise.all(Object.entries(TEILE).map(([name, mat]) =>
+  new Promise((ok, err) => lader.load(`stl/${name}.stl`, g => {
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, mat);
+    m.castShadow = name !== 'gaze';
+    m.receiveShadow = true;
+    netz[name] = m;
+    wurzel.add(m);
+    ok();
+  }, undefined, err))
+)).then(() => {
+  bereit = true;
+  // index.html?direkt=1 ueberspringt die Begruessung und die Kamerafahrt
+  if (new URLSearchParams(location.search).has('direkt')) ueberspringe();
+  vorhang(stufe === SPIEL ? 1 : 0);
+  kameraAuf(stufe === SPIEL ? 1 : 0);
+  renderer.render(szene, kamera);        // erstes Bild sofort, ohne Warten
+});
+
+// =====================================================================
+// Vorhang.  t = 0 geschlossen, t = 1 offen.
+// =====================================================================
+function vorhang(t) {
+  if (!bereit) return;
+  netz.rahmen.position.z = -M.hub * t;
+
+  const sg = (M.gazeH - M.hub * t) / M.gazeH;     // Gaze rafft sich, unten fest
+  netz.gaze.scale.z = sg;
+  netz.gaze.position.z = M.gazeUk * (1 - sg);
+
+  const su = (M.gurtH + M.hub * t) / M.gurtH;     // Gurte werden laenger, oben fest
+  netz.gurte_hub.scale.z = su;
+  netz.gurte_hub.position.z = M.welleZ * (1 - su);
+}
+
+// =====================================================================
+// Kamerafahrt.  p = 0 weit und hoch, p = 1 Endstellung.
+// =====================================================================
+const grad  = THREE.MathUtils.degToRad;
+const misch = (a, b, e) => a + (b - a) * e;
+const sanft = x => x*x*x*(x*(x*6 - 15) + 10);     // smootherstep
+
+const blick = new THREE.Vector3();
+function kameraAuf(p, drehung = 0) {
+  const e   = sanft(Math.min(1, Math.max(0, p)));
+  const r   = misch(27,       10.2,      e);
+  const az  = misch(grad(42), grad(133), e) + drehung;
+  const pol = misch(grad(26), grad(67),  e);
+  blick.set(0, misch(0.9, 1.35, e), 0);
+  kamera.position.set(
+    blick.x + r * Math.sin(pol) * Math.cos(az),
+    blick.y + r * Math.cos(pol),
+    blick.z + r * Math.sin(pol) * Math.sin(az));
+  kamera.lookAt(blick);
+  bahn.target.copy(blick);
+}
+
+// =====================================================================
+// Ablauf
+// =====================================================================
+const HERO = 0, FAHRT = 1, SPIEL = 2;
+let stufe = HERO;
+let uhrHero = 0, uhrFahrt = 0, uhrSpiel = 0;
+const FAHRT_DAUER = 7.5;
+
+// Drehbuch des Vorhangs: Dauer in Sekunden, Start- und Zielwert
+const PLAN = [
+  { d: 1.4, a: 0, b: 0, text: 'Vorhang geschlossen' },
+  { d: 3.4, a: 0, b: 1, text: 'Vorhang oeffnet' },
+  { d: 4.0, a: 1, b: 1, text: 'Vorhang offen, die Pferde fressen' },
+  { d: 3.4, a: 1, b: 0, text: 'Vorhang schliesst' },
+  { d: 4.0, a: 0, b: 0, text: 'Vorhang geschlossen' },
+];
+const PLAN_DAUER = PLAN.reduce((s, k) => s + k.d, 0);
+
+const eStand     = document.getElementById('stand');
+const eStandtext = document.getElementById('standtext');
+let letzterText = '';
+
+function spiele(zeit) {
+  let z = zeit % PLAN_DAUER;
+  for (const k of PLAN) {
+    if (z < k.d) {
+      vorhang(misch(k.a, k.b, sanft(z / k.d)));
+      if (k.text !== letzterText) {
+        letzterText = k.text;
+        eStandtext.textContent = k.text;
+        eStand.classList.toggle('offen', k.b === 1);
+      }
+      return;
+    }
+    z -= k.d;
+  }
+}
+
+const eHero = document.getElementById('hero');
+const eWink = document.getElementById('wink');
+
+function ueberspringe() {
+  stufe = SPIEL;
+  uhrSpiel = PLAN[0].d + PLAN[1].d;      // mitten im offenen Zustand
+  eHero.classList.add('weg');
+  eWink.classList.add('weg');
+  document.body.classList.add('film');
+  for (const id of ['titel', 'fuss', 'stand'])
+    document.getElementById(id).classList.add('da');
+  bahn.enabled = true;
+  bahn.autoRotate = true;
+  bahn.autoRotateSpeed = 0.25;
+}
+
+// ------------------------------------------------ Start durch Scrollen
+function starte() {
+  if (stufe !== HERO) return;
+  stufe = FAHRT;
+  eHero.classList.add('weg');
+  eWink.classList.add('weg');
+  setTimeout(() => {
+    document.body.classList.add('film');
+    scrollTo(0, 0);
+    document.getElementById('titel').classList.add('da');
+    document.getElementById('fuss').classList.add('da');
+  }, 700);
+}
+
+addEventListener('scroll', () => { if (scrollY > innerHeight * 0.12) starte(); },
+                 { passive: true });
+addEventListener('wheel', starte, { passive: true });
+eWink.addEventListener('click', starte);
+document.getElementById('geschenk').addEventListener('click', starte);
+addEventListener('keydown', ev => {
+  if (['ArrowDown', 'PageDown', ' ', 'Enter'].includes(ev.key)) starte();
+});
+
+// Wer selbst dreht, uebernimmt die Kamera.
+bahn.addEventListener('start', () => { bahn.autoRotate = false; });
+
+// ------------------------------------------------ Schleife
+addEventListener('resize', () => {
+  kamera.aspect = innerWidth / innerHeight;
+  kamera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const takt = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(takt.getDelta(), 0.1);
+
+  if (stufe === HERO) {
+    uhrHero += dt * 0.05;                  // Modell dreht hinter dem Text
+    kameraAuf(0, uhrHero);
+  } else if (stufe === FAHRT) {
+    uhrFahrt += dt;
+    kameraAuf(uhrFahrt / FAHRT_DAUER, uhrHero * (1 - uhrFahrt / FAHRT_DAUER));
+    if (uhrFahrt >= FAHRT_DAUER) {
+      stufe = SPIEL;
+      uhrSpiel = 0;
+      bahn.enabled = true;
+      bahn.autoRotate = true;
+      bahn.autoRotateSpeed = 0.25;
+      eStand.classList.add('da');
+    }
+  } else {
+    uhrSpiel += dt;
+    spiele(uhrSpiel);
+    bahn.update();
+  }
+
+  renderer.render(szene, kamera);
+});
+</script>
+</body>
+</html>
