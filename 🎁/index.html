@@ -19,8 +19,8 @@
   html { height: 100%; }
   body {
     margin: 0;
-    min-height: 240svh;                /* Scrollraum fuer den Start */
-    overscroll-behavior: none;         /* kein Gummiband, kein Pull-to-Refresh */
+    min-height: 240svh;
+    overscroll-behavior: none;
     overflow-x: hidden;
     background: var(--bg);
     color: var(--tinte);
@@ -29,9 +29,6 @@
   }
   body.film { min-height: 100%; height: 100dvh; overflow: hidden; }
 
-  /* ------------------------------------------------ Buehne */
-  /* inset:0 fuellt bei viewport-fit=cover die ganze Anzeige, auch unter
-     Notch und Home-Indikator, ohne einen Rollbalken zu erzeugen. */
   #szene { position: fixed; inset: 0; z-index: 0; }
   canvas { display: block; }
 
@@ -62,7 +59,7 @@
   }
   #geschenk:hover { transform: scale(1.06); }
   @keyframes wippen {
-    0%, 100% { transform: translateY(0)    rotate(-1.5deg); }
+    0%, 100% { transform: translateY(0)     rotate(-1.5deg); }
     50%      { transform: translateY(-14px) rotate(1.5deg); }
   }
 
@@ -87,54 +84,31 @@
     50%      { transform: rotate(45deg) translate(4px, 4px); opacity: 1;   }
   }
 
-  /* ------------------------------------------------ Anzeige im Film */
-  .karte {
+  /* ------------------------------------------------ Umschalter */
+  #wechsel {
     position: fixed; z-index: 3;
+    left: 50%; bottom: calc(26px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 12px);
+    display: flex; gap: 4px; padding: 4px;
     background: rgba(28,30,34,.90);
     backdrop-filter: blur(12px);
-    border: 1px solid #3a3e45;
-    border-radius: 13px;
-    color: #f2f1ee;
-    opacity: 0; transform: translateY(10px);
+    border: 1px solid #3a3e45; border-radius: 999px;
+    opacity: 0; pointer-events: none;
     transition: opacity .7s ease, transform .7s ease;
-    pointer-events: none;
   }
-  .karte.da { opacity: 1; transform: none; pointer-events: auto; }
+  #wechsel.da { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  #wechsel button {
+    font: inherit; font-size: 13px; font-weight: 550;
+    color: #9ea3ab; background: none; border: 0;
+    padding: 9px 18px; border-radius: 999px; cursor: pointer;
+    white-space: nowrap; transition: background .2s, color .2s;
+  }
+  #wechsel button:hover { color: #f2f1ee; }
+  #wechsel button.an { background: var(--akzent); color: #1a1206; }
+  #wechsel button:disabled { opacity: .5; cursor: default; }
 
-  #titel {
-    top:  calc(20px + env(safe-area-inset-top));
-    left: calc(20px + env(safe-area-inset-left));
-    padding: 13px 18px; max-width: 300px;
-  }
-  #titel b { display: block; font-size: 15px; font-weight: 600; }
-  #titel span { font-size: 12.5px; color: #9ea3ab; }
-
-  #stand {
-    left: 50%; bottom: calc(24px + env(safe-area-inset-bottom));
-    transform: translate(-50%, 10px);
-    padding: 10px 20px; display: flex; align-items: center; gap: 11px;
-    font-size: 13.5px; white-space: nowrap;
-  }
-  #stand.da { transform: translate(-50%, 0); }
-  #stand .punkt {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--akzent); flex: 0 0 auto;
-    transition: background .4s;
-  }
-  #stand.offen .punkt { background: #6d9a4a; }
-
-  #fuss {
-    right:  calc(20px + env(safe-area-inset-right));
-    bottom: calc(24px + env(safe-area-inset-bottom));
-    padding: 9px 14px;
-    font-size: 12px; color: #9ea3ab;
-  }
-  #fuss a { color: #9ea3ab; text-decoration: none; border-bottom: 1px solid #3a3e45; }
-  #fuss a:hover { color: #f2f1ee; }
-
-  @media (max-width: 720px) {
-    #fuss { display: none; }
-    #titel { max-width: calc(100vw - 40px); }
+  @media (max-width: 520px) {
+    #wechsel button { padding: 8px 13px; font-size: 12px; }
   }
 </style>
 </head>
@@ -151,17 +125,9 @@
   <span class="pfeil"></span>
 </button>
 
-<div class="karte" id="titel">
-  <b>Heuraufe mit Zeitsteuerung</b>
-  <span>Rundballenraufe, 2,00 × 2,00 m, mit Pultdach</span>
-</div>
-
-<div class="karte" id="stand">
-  <span class="punkt"></span><span id="standtext">Vorhang geschlossen</span>
-</div>
-
-<div class="karte" id="fuss">
-  <a href="heuraufe.scad">Modell: heuraufe.scad</a>
+<div id="wechsel">
+  <button id="btn1" class="an">Gaze-Vorhang</button>
+  <button id="btn2">Sperrholzkiste</button>
 </div>
 
 <script type="importmap">
@@ -177,29 +143,53 @@
 import * as THREE from 'three';
 import { OrbitControls }   from 'three/addons/controls/OrbitControls.js';
 import { STLLoader }       from 'three/addons/loaders/STLLoader.js';
+import { GLTFLoader }      from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // =====================================================================
-// Masse aus heuraufe.scad, in Millimetern
+// Masse aus heuraufe.scad, in Millimetern.
+// Quelle: Ausgabe "WEB: Zahlen fuer index.html" in der OpenSCAD-Konsole.
 // =====================================================================
-const M = {
-  rahmenZu: 2200,   // Rahmen geschlossen
-  rahmenAuf: 900,   // Rahmen offen
-  gazeUk:    400,   // Unterkante der Gaze, fest
-  welleZ:   2400,   // Achse der Wickelwelle
+const V = {
+  1: {                                   // Gaze-Vorhang
+    ordner: 'v1',
+    teile: ['tragwerk', 'dach', 'kasten', 'welle',
+            'gurte_fest', 'gurte_hub_t', 'gurte_hub_h', 'rahmen', 'ballen'],
+    huelle: 'rahmen',
+    rolleT: 2656, rolleH: 2961,
+    zu: 2200, auf: 900,                  // Rohrrahmen, oben = geschlossen
+    hoehe: 0,
+    // Geschlossener Ring. Oben aussen auf dem Rohrrahmen, unten flach auf
+    // der Kastenschalung, dort von der Klemmleiste gehalten.
+    // Die Gaze ist auf 100 mm hinter der Klemmleiste festgeschraubt. Zu
+    // sehen ist sie erst ab deren Oberkante auf 200 mm - darunter steckt
+    // sie im Schlitz zwischen Schalung und Leiste.
+    tuch: { unten: 200, rOben: 1105, rUnten: 1003 },
+  },
+  2: {                                   // Sperrholzkiste
+    ordner: 'v2',
+    teile: ['tragwerk', 'dach', 'kasten', 'welle',
+            'gurte_fest', 'gurte_hub_t', 'gurte_hub_h', 'kiste', 'ballen'],
+    huelle: 'kiste',
+    rolleT: 3156, rolleH: 3461,
+    zu: 980, auf: 2396,                  // Kiste, hier ist oben = offen
+    hoehe: 700,                          // Gurte greifen an der Oberkante an
+    tuch: null,
+  },
 };
-M.hub   = M.rahmenZu - M.rahmenAuf;
-M.gazeH = M.rahmenZu - M.gazeUk;
-M.gurtH = M.welleZ  - M.rahmenZu;
+for (const k of [1, 2]) {                // Angriffspunkt der Gurte
+  V[k].griffZu  = V[k].zu  + V[k].hoehe;
+  V[k].griffAuf = V[k].auf + V[k].hoehe;
+}
 
 // =====================================================================
 // Szene
 // =====================================================================
 const szene = new THREE.Scene();
 szene.background = new THREE.Color(0xeceae5);
-szene.fog = new THREE.Fog(0xeceae5, 30, 78);
+szene.fog = new THREE.Fog(0xeceae5, 30, 85);
 
-const kamera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 260);
+const kamera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 280);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -218,30 +208,28 @@ const bahn = new OrbitControls(kamera, renderer.domElement);
 bahn.enableDamping = true;
 bahn.dampingFactor = 0.06;
 bahn.minDistance = 3.5;
-bahn.maxDistance = 30;
+bahn.maxDistance = 34;
 bahn.maxPolarAngle = Math.PI * 0.495;
-bahn.enabled = false;                      // erst nach der Kamerafahrt
+bahn.enabled = false;
 
 szene.add(new THREE.HemisphereLight(0xdfe7f2, 0x8d8271, 0.85));
 const sonne = new THREE.DirectionalLight(0xfff2dc, 2.9);
-sonne.position.set(7, 11, 5);
+sonne.position.set(7, 12, 5);
 sonne.castShadow = true;
 sonne.shadow.mapSize.set(2048, 2048);
-Object.assign(sonne.shadow.camera,
-  { left: -7, right: 7, top: 7, bottom: -7, near: 1, far: 34 });
+Object.assign(sonne.shadow.camera,           // deckt auch die Pferderunde
+  { left: -17, right: 17, top: 17, bottom: -17, near: 1, far: 60 });
 szene.add(sonne);
 
 const boden = new THREE.Mesh(
-  new THREE.CircleGeometry(40, 64),
+  new THREE.CircleGeometry(45, 64),
   new THREE.MeshStandardMaterial({ color: 0xc3baa6, roughness: 1 })
 );
 boden.rotation.x = -Math.PI/2;
 boden.receiveShadow = true;
 szene.add(boden);
 
-// =====================================================================
-// Modell.  STL in Millimetern, Z oben.  Gruppe dreht auf Meter mit Y oben.
-// =====================================================================
+// Modell steht in Millimetern mit Z oben. Die Gruppe dreht auf Meter, Y oben.
 const wurzel = new THREE.Group();
 wurzel.rotation.x = -Math.PI/2;
 wurzel.scale.setScalar(0.001);
@@ -250,73 +238,420 @@ szene.add(wurzel);
 const holz  = c      => new THREE.MeshStandardMaterial({ color: c, roughness: .85 });
 const stahl = (c, r) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: .85 });
 
-const TEILE = {
-  tragwerk:   holz(0xb0895c),
-  kasten:     holz(0x93683f),
-  dach:       stahl(0x646b73, .5),
-  welle:      stahl(0xb4b8bd, .32),
-  rahmen:     stahl(0xd2d5d8, .26),
-  gurte_fest: holz(0xdcdad4),
-  gurte_hub:  holz(0xdcdad4),
-  ballen:     holz(0xd6bd72),
-  gaze:       new THREE.MeshStandardMaterial({
-                color: 0x76835c, roughness: .95, transparent: true,
-                opacity: .42, side: THREE.DoubleSide, depthWrite: false }),
+const MAT = {
+  tragwerk:    holz(0xb0895c),
+  kasten:      holz(0x93683f),
+  kiste:       holz(0xc0a071),
+  dach:        stahl(0x646b73, .5),
+  welle:       stahl(0xb4b8bd, .32),
+  rahmen:      stahl(0xd2d5d8, .26),
+  gurte_fest:  holz(0xdcdad4),
+  gurte_hub_t: holz(0xdcdad4),
+  gurte_hub_h: holz(0xdcdad4),
+  ballen:      holz(0xd6bd72),
 };
 
-const lader = new STLLoader();
-const netz = {};
-let bereit = false;
-
-Promise.all(Object.entries(TEILE).map(([name, mat]) =>
-  new Promise((ok, err) => lader.load(`stl/${name}.stl`, g => {
-    g.computeVertexNormals();
-    const m = new THREE.Mesh(g, mat);
-    m.castShadow = name !== 'gaze';
-    m.receiveShadow = true;
-    netz[name] = m;
-    wurzel.add(m);
-    ok();
-  }, undefined, err))
-)).then(() => {
-  bereit = true;
-  // index.html?direkt=1 ueberspringt die Begruessung und die Kamerafahrt
-  if (new URLSearchParams(location.search).has('direkt')) ueberspringe();
-  vorhang(stufe === SPIEL ? 1 : 0);
-  kameraAuf(stufe === SPIEL ? 1 : 0);
-  renderer.render(szene, kamera);        // erstes Bild sofort, ohne Warten
-});
-
 // =====================================================================
-// Vorhang.  t = 0 geschlossen, t = 1 offen.
+// Tuch.  Verlet-Simulation wie im three.js-Beispiel: Punktgitter,
+// Abstandsbedingungen, Schwerkraft. Oben am Rohrrahmen aufgehaengt,
+// unten an der Fussleiste festgeklemmt. Faehrt der Rahmen herunter,
+// staucht sich das Gitter und das Tuch wirft von selbst Falten.
+// Die Abstandsbedingungen ziehen nur, sie druecken nicht - deshalb
+// knickt das Tuch aus, statt sich zu strecken. Dazu kommen Bedingungen
+// ueber je zwei Felder, die nur druecken: sie geben dem Gewebe
+// Biegesteifigkeit.
+//
+// Das Tuch laeuft in einer Schale zwischen der Kastenwand und einer
+// aeusseren Schranke. Ohne die aeussere Schranke waelbt sich die ganze
+// Weite zu einem einzigen Bauch, und man sieht von aussen nur eine
+// glatte Flaeche. In der Schale muss es sich stapeln - so entstehen die
+// Falten, die man auch sieht.
 // =====================================================================
-function vorhang(t) {
-  if (!bereit) return;
-  netz.rahmen.position.z = -M.hub * t;
+const NU = 120, NY = 22;                // Punkte rundum und in der Hoehe
+const SCHRITTE = 6;                     // Entspannungsdurchlaeufe je Bild
+const BIEG_Y = 0.72, BIEG_U = 0.75;     // Biegesteifigkeit, 1 waere starr
+const STEIF  = 0.75;                    // wie hart sie je Durchlauf wirkt
+const LUFT   = 80;                      // Luft zwischen Rohrrahmen und
+                                        // aeusserer Schranke
 
-  const sg = (M.gazeH - M.hub * t) / M.gazeH;     // Gaze rafft sich, unten fest
-  netz.gaze.scale.z = sg;
-  netz.gaze.position.z = M.gazeUk * (1 - sg);
+// Statische Koerper. Alles Holz steht still - das Tuch weicht ihm aus,
+// nie umgekehrt. Jeder Koerper ist ein Quader um die Hochachse: halbe
+// Kantenlaenge r, von z0 bis z1. Ein Punkt im Inneren wandert auf die
+// naechste Flaeche hinaus.
+const HOLZ = [
+  { r: 1000, z0:  100, z1: 1000, deckel: false },  // Futterkasten
+  { r: 1030, z0:  100, z1:  200, deckel: true  },  // Klemmleiste
+  { r: 1000, z0: 1000, z1: 2400, deckel: false },  // Fressoeffnung: kein
+];                                                 // Holz, aber tabu
 
-  const su = (M.gurtH + M.hub * t) / M.gurtH;     // Gurte werden laenger, oben fest
-  netz.gurte_hub.scale.z = su;
-  netz.gurte_hub.position.z = M.welleZ * (1 - su);
+// Die Punkte allein reichen nicht: zwei benachbarte Punkte auf zwei
+// Flaechen spannen eine Sehne ueber die Ecke, und die schneidet das Holz.
+// Deshalb bekommt jede Ecke in jeder Reihe einen Punkt, der genau dort
+// sitzt - dann laeuft jede Sehne aussen vorbei. Welcher Punkt das ist,
+// aendert sich, weil das Tuch beim Raffen um die Ecke rutscht.
+const VORZ = [[1,1], [1,-1], [-1,-1], [-1,1]];
+
+function ausweichen(p, ecke) {
+  for (const k of HOLZ) {
+    if (p.z <= k.z0 || p.z >= k.z1) continue;
+    const ax = Math.abs(p.x), ay = Math.abs(p.y);
+    if (ecke) {
+      if (ax < k.r) p.x = Math.sign(p.x || 1) * k.r;
+      if (ay < k.r) p.y = Math.sign(p.y || 1) * k.r;
+      continue;
+    }
+    if (ax >= k.r || ay >= k.r) continue;          // schon draussen
+    const dx = k.r - ax, dy = k.r - ay;
+    const dz = k.deckel ? k.z1 - p.z : Infinity;
+    if (dz < dx && dz < dy)   p.z = k.z1;          // oben heraus
+    else if (dx < dy)         p.x = Math.sign(p.x || 1) * k.r;
+    else                      p.y = Math.sign(p.y || 1) * k.r;
+  }
+}
+
+class Tuch {
+  constructor(k) {
+    this.k = k;
+    this.U  = 8 * k.rOben;              // Umfang oben am Rahmen
+    this.du = this.U / NU;
+    this.dy = (k.zu - k.unten) / (NY - 1);
+
+    this.p = []; this.alt = [];
+    for (let j = 0; j < NY; j++)
+      for (let i = 0; i < NU; i++) {
+        const v = this.punkt(i, j, k.zu);
+        this.p.push(v.clone());
+        this.alt.push(v.clone());
+      }
+
+    // Bedingungen. Die waagerechten laufen um die Ecke herum weiter,
+    // deshalb ist der Vorhang rundum geschlossen und nicht in vier Bahnen.
+    this.b = [];
+    const id = (i, j) => j*NU + ((i % NU) + NU) % NU;
+    for (let j = 0; j < NY; j++)
+      for (let i = 0; i < NU; i++) {
+        this.b.push([id(i,j), id(i+1,j), this.du]);
+        if (j < NY-1) {
+          this.b.push([id(i,j), id(i,j+1), this.dy]);
+          this.b.push([id(i,j), id(i+1,j+1), Math.hypot(this.du, this.dy)]);
+        }
+      }
+
+    // Biegesteifigkeit. Der Abstand ueber zwei Felder darf nicht unter
+    // das Mass fallen; damit ist der Knickwinkel je Punkt begrenzt und
+    // die Falte bekommt einen Mindestradius.
+    this.s = [];
+    for (let j = 0; j < NY; j++)
+      for (let i = 0; i < NU; i++) {
+        this.s.push([id(i,j), id(i+2,j), 2*this.du*BIEG_U]);
+        if (j < NY-2) this.s.push([id(i,j), id(i,j+2), 2*this.dy*BIEG_Y]);
+      }
+
+    // Netz: eine Spalte mehr, die die erste wiederholt - so schliesst
+    // die Naht sauber.
+    const ecken = (NU+1) * NY, idx = [];
+    for (let j = 0; j < NY-1; j++)
+      for (let i = 0; i < NU; i++) {
+        const a = j*(NU+1) + i, b = a + 1, c = a + NU+1, d = c + 1;
+        idx.push(a, c, b,  b, c, d);
+      }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position',
+      new THREE.BufferAttribute(new Float32Array(ecken*3), 3));
+    geo.setIndex(idx);
+    this.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      color: 0x76835c, roughness: .85, transparent: true, opacity: .62,
+      side: THREE.DoubleSide, depthWrite: false }));
+    this.mesh.receiveShadow = true;
+    this.mesh.castShadow = true;        // ohne Schatten liest sich keine Falte
+  }
+
+  // Nennlage: einmal um das Quadrat herum. j = 0 ist oben am Rahmen,
+  // j = NY-1 unten an der Klemmleiste. Das Quadrat wird nach unten hin
+  // kleiner, weil der Rahmen weiter aussen liegt als die Kastenwand.
+  punkt(i, j, oben) {
+    const R = this.k.rOben;
+    const f = j / (NY - 1);
+    const r = R + (this.k.rUnten - R) * f;
+    const q = (i * this.du) % this.U;
+    const seite = Math.floor(q / (2*R)), t = (q % (2*R)) * r / R;
+    const xy = [[-r + t,  r], [ r, r - t], [ r - t, -r], [-r, -r + t]][seite];
+    const z  = oben - f*(oben - this.k.unten);
+    return new THREE.Vector3(xy[0], xy[1], z);
+  }
+
+  // Je Reihe und Ecke der Punkt, der ihr am naechsten liegt.
+  eckpunkte() {
+    const e = new Set();
+    for (let j = 0; j < NY; j++)
+      for (const [sx, sy] of VORZ) {
+        let best = -1, dist = Infinity;
+        for (let i = 0; i < NU; i++) {
+          const p = this.p[j*NU + i];
+          const d = (p.x - sx*1000)**2 + (p.y - sy*1000)**2;
+          if (d < dist) { dist = d; best = j*NU + i; }
+        }
+        e.add(best);
+      }
+    return e;
+  }
+
+  schritt(dt, oben) {
+    const g = -9810 * dt * dt;
+    const raus = 700 * dt * dt;
+    const daempf = 0.985;
+    const rmax = this.k.rOben + LUFT;   // weiter nach aussen nicht
+    const boden = this.k.unten;         // tiefer als die Klemmleiste nicht
+
+    for (let j = 1; j < NY; j++)
+      for (let i = 0; i < NU; i++) {
+        const k = j*NU + i, p = this.p[k], a = this.alt[k];
+        const vx = (p.x-a.x)*daempf, vy = (p.y-a.y)*daempf, vz = (p.z-a.z)*daempf;
+        const l = Math.hypot(p.x, p.y) || 1;
+        a.copy(p);
+        p.x += vx + p.x/l*raus;
+        p.y += vy + p.y/l*raus;
+        p.z += vz + g;
+      }
+
+    const ecken = this.eckpunkte();
+
+    for (let s = 0; s < SCHRITTE; s++) {
+      for (const [a, b, len] of this.b) {
+        const pa = this.p[a], pb = this.p[b];
+        const dx = pb.x-pa.x, dy = pb.y-pa.y, dz = pb.z-pa.z;
+        const d = Math.hypot(dx, dy, dz) || 1e-6;
+        if (d <= len) continue;          // nur ziehen, nicht druecken
+        const f = (d - len) / d * 0.5;
+        const ox = dx*f, oy = dy*f, oz = dz*f;
+        if (a >= NU)                  { pa.x += ox; pa.y += oy; pa.z += oz; }
+        if (b >= NU && b < NU*(NY-1)) { pb.x -= ox; pb.y -= oy; pb.z -= oz; }
+      }
+      for (const [a, b, len] of this.s) {
+        const pa = this.p[a], pb = this.p[b];
+        const dx = pb.x-pa.x, dy = pb.y-pa.y, dz = pb.z-pa.z;
+        const d = Math.hypot(dx, dy, dz) || 1e-6;
+        if (d >= len) continue;          // nur druecken, nicht ziehen
+        const f = (d - len) / d * 0.5 * STEIF;
+        const ox = dx*f, oy = dy*f, oz = dz*f;
+        if (a >= NU)                  { pa.x += ox; pa.y += oy; pa.z += oz; }
+        if (b >= NU && b < NU*(NY-1)) { pb.x -= ox; pb.y -= oy; pb.z -= oz; }
+      }
+      for (let k = 0; k < this.p.length; k++) {   // dann die Schranken,
+        const p = this.p[k];
+        if (p.z < boden) p.z = boden;
+        ausweichen(p, ecken.has(k));
+        if (Math.abs(p.x) > rmax) p.x = Math.sign(p.x)*rmax;
+        if (Math.abs(p.y) > rmax) p.y = Math.sign(p.y)*rmax;
+      }
+
+      // Auch die Kanten muessen draussen bleiben. Rutscht das Tuch um
+      // eine Ecke, spannt eine Sehne ueber das Holz, obwohl beide Enden
+      // frei liegen. Die Sehne wird an mehreren Stellen geprueft, jede
+      // Stelle im Holz treibt beide Enden heraus. Das kostet, deshalb
+      // nur im letzten Durchlauf - dort steht das Ergebnis.
+      if (s === SCHRITTE - 1)
+        for (let j = 1; j < NY-1; j++)
+          for (let i = 0; i < NU; i++) {
+            const p = this.p[j*NU + i];
+            for (const q of [this.p[j*NU + (i+1) % NU], this.p[(j+1)*NU + i]]) {
+              for (const f of [0.25, 0.5, 0.75]) {
+                const mx = p.x + (q.x-p.x)*f, my = p.y + (q.y-p.y)*f,
+                      mz = p.z + (q.z-p.z)*f;
+                for (const w of HOLZ) {
+                  if (mz <= w.z0 || mz >= w.z1) continue;
+                  const dx = w.r - Math.abs(mx), dy = w.r - Math.abs(my);
+                  if (dx <= 0 || dy <= 0) continue;
+                  if (dx < dy) { const o = Math.sign(mx || 1)*dx; p.x += o; q.x += o; }
+                  else         { const o = Math.sign(my || 1)*dy; p.y += o; q.y += o; }
+                }
+              }
+            }
+          }
+      for (let i = 0; i < NU; i++) {     // zuletzt die festen Punkte, damit
+        this.p[i].copy(this.punkt(i, 0, oben));          // sie exakt sitzen
+        this.p[(NY-1)*NU + i].copy(this.punkt(i, NY-1, this.k.unten));
+      }
+    }
+
+    const pos = this.mesh.geometry.attributes.position;
+    for (let j = 0; j < NY; j++)
+      for (let i = 0; i <= NU; i++) {
+        const q = this.p[j*NU + (i % NU)];
+        pos.setXYZ(j*(NU+1) + i, q.x, q.y, q.z);
+      }
+    pos.needsUpdate = true;
+    this.mesh.geometry.computeVertexNormals();
+  }
 }
 
 // =====================================================================
-// Kamerafahrt.  p = 0 weit und hoch, p = 1 Endstellung.
+// Laden
+// =====================================================================
+const lader = new STLLoader();
+const gruppen = {};
+const tuecher = [];
+
+function ladeVariante(k) {
+  if (gruppen[k]) return Promise.resolve(gruppen[k]);
+  const c = V[k], g = new THREE.Group();
+  g.userData.teil = {};
+  return Promise.all(c.teile.map(name => new Promise((ok, err) =>
+    lader.load(`stl/${c.ordner}/${name}.stl`, geo => {
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, MAT[name]);
+      m.castShadow = true; m.receiveShadow = true;
+      g.userData.teil[name] = m;
+      g.add(m);
+      ok();
+    }, undefined, err))
+  )).then(() => {
+    if (c.tuch) {
+      const t = new Tuch({ ...c.tuch, zu: c.zu });
+      tuecher.push(t);
+      g.add(t.mesh);
+    }
+    gruppen[k] = g;
+    wurzel.add(g);
+    return g;
+  });
+}
+
+// =====================================================================
+// Pferd.  Modell aus dem three.js-Beispiel webgl_morphtargets_horse,
+// urspruenglich von mirada fuer ro.me. Der Galoppzyklus steckt als
+// Morph-Animation im Modell. Es blickt nach +Z und misst 183 Einheiten
+// in der Hoehe, der Widerrist liegt bei rund 143.
+//
+// Das Pferd laeuft eine feste Runde um die Raufe. Einmal je Runde
+// wechselt es an einer zufaelligen Stelle zwischen Schritt und Galopp.
+// =====================================================================
+const PF = {
+  mass:  1.65 / 143,        // Widerrist auf 1,65 m Stockmass
+  tempo: 5.4,               // m/s, Galopp
+  hub:   3.4,               // Weg je Zyklus: laenger als der reine
+                            // Beinausschlag, sonst rudern die Beine
+  lage:  17 * Math.PI/180,  // hoechste Kurvenlage
+  ruhig: 3.0,               // wie traege sich die Lage einstellt
+};
+
+// Die Runde, abgemessen an der Skizze, auf das Doppelte gestreckt und
+// geglaettet: die Haarnadel am rechten Ende und die Stufe unten links
+// sind heraus, der Rest ist tiefpassgefiltert. Der kleinste Radius
+// steigt damit von 0,6 auf 2,9 m. Die Stuetzpunkte liegen gleich weit
+// auseinander, sonst schlaegt die Kurve zwischen ihnen aus.
+const PF_BAHN = [
+  [-12.09,  -0.35], [-11.70,  -1.86], [-10.92,  -3.21], [ -9.83,  -4.34],
+  [ -8.51,  -5.16], [ -7.02,  -5.65], [ -5.47,  -5.86], [ -3.91,  -5.94],
+  [ -2.34,  -5.98], [ -0.77,  -5.99], [  0.79,  -5.88], [  2.32,  -5.57],
+  [  3.81,  -5.08], [  5.27,  -4.52], [  6.75,  -4.02], [  8.29,  -3.74],
+  [  9.86,  -3.65], [ 11.42,  -3.58], [ 12.95,  -3.25], [ 14.29,  -2.46],
+  [ 15.23,  -1.22], [ 15.70,   0.27], [ 15.64,   1.82], [ 14.87,   3.16],
+  [ 13.45,   3.77], [ 11.89,   3.83], [ 10.33,   3.73], [  8.76,   3.71],
+  [  7.22,   3.98], [  5.79,   4.60], [  4.48,   5.45], [  3.20,   6.35],
+  [  1.86,   7.17], [  0.45,   7.84], [ -1.04,   8.31], [ -2.59,   8.54],
+  [ -4.15,   8.45], [ -5.63,   7.94], [ -6.93,   7.08], [ -8.10,   6.03],
+  [ -9.22,   4.94], [-10.32,   3.82], [-11.30,   2.61], [-11.97,   1.20]
+];
+
+let pferd = null, pfRumpf = null, pfMischer = null;
+let pfKurve = null, pfLaenge = 1, pfU = 0;
+let pfGier = 0, pfNeigung = 0;
+
+const pfOrt = new THREE.Vector3(), pfRichtung = new THREE.Vector3();
+
+new GLTFLoader().load('modelle/Horse.glb', gltf => {
+  const netz = gltf.scene.children[0];
+  netz.castShadow = true;
+  netz.receiveShadow = true;
+
+  // Zwei Gruppen: die aeussere dreht in die Fahrtrichtung, die innere
+  // legt sich um die Laengsachse in die Kurve.
+  pfRumpf = new THREE.Group();
+  pfRumpf.add(netz);
+  pferd = new THREE.Group();
+  pferd.add(pfRumpf);
+  pferd.scale.setScalar(PF.mass);
+  pferd.visible = false;
+  szene.add(pferd);
+
+  pfKurve = new THREE.CatmullRomCurve3(
+    PF_BAHN.map(([x, z]) => new THREE.Vector3(x, 0, z)), true, 'catmullrom', 0.5);
+  pfLaenge = pfKurve.getLength();
+
+  pfMischer = new THREE.AnimationMixer(netz);
+  pfMischer.clipAction(gltf.animations[0]).play();
+}, undefined, () => { /* ohne Pferd laeuft die Seite trotzdem */ });
+
+function pferdSchritt(dt) {
+  if (!pferd || !pfKurve) return;
+
+  pfU = (pfU + PF.tempo * dt / pfLaenge) % 1;
+
+  pfKurve.getPointAt(pfU, pfOrt);
+  pfKurve.getTangentAt(pfU, pfRichtung);
+  const gier = Math.atan2(pfRichtung.x, pfRichtung.z);
+  pferd.position.copy(pfOrt);
+  pferd.rotation.y = gier;
+
+  // Kurvenlage aus der Drehrate der Fahrtrichtung: tan(Lage) = v * w / g.
+  // Die Bahn ist nur C1-stetig, deshalb springt die Kruemmung an den
+  // Stuetzpunkten. Der Nachlauf glaettet das.
+  let d = gier - pfGier;
+  if (d >  Math.PI) d -= 2 * Math.PI;
+  if (d < -Math.PI) d += 2 * Math.PI;
+  pfGier = gier;
+  const w = d / Math.max(dt, 1e-4);
+  const ziel = Math.max(-PF.lage, Math.min(PF.lage,
+                 Math.atan(PF.tempo * w / 9.81)));
+  pfNeigung += (ziel - pfNeigung) * Math.min(1, PF.ruhig * dt);
+  pfRumpf.rotation.z = -pfNeigung;
+
+  // Die Beine laufen genau so schnell, wie der Boden unter ihnen
+  // durchzieht. Sonst rutscht das Pferd.
+  pfMischer.update(dt * PF.tempo * 1.5 / PF.hub);
+}
+
+// =====================================================================
+// Bewegung.  t = 0 geschlossen, t = 1 offen.
+// =====================================================================
+let aktiv = 1;
+
+function stelle(t, dt) {
+  const g = gruppen[aktiv];
+  if (!g) return;
+  const c = V[aktiv], T = g.userData.teil;
+  const griff = c.griffZu + (c.griffAuf - c.griffZu) * t;
+
+  T[c.huelle].position.z = (c.auf - c.zu) * t;
+
+  for (const [name, rolle] of [['gurte_hub_t', c.rolleT],
+                               ['gurte_hub_h', c.rolleH]]) {
+    const s = (rolle - griff) / (rolle - c.griffZu);
+    T[name].scale.z = s;
+    T[name].position.z = rolle * (1 - s);
+  }
+
+  if (c.tuch && dt) {
+    const oben = c.zu + (c.auf - c.zu) * t;
+    for (const tu of tuecher) tu.schritt(Math.min(dt, 1/40), oben);
+  }
+}
+
+// =====================================================================
+// Kamerafahrt
 // =====================================================================
 const grad  = THREE.MathUtils.degToRad;
 const misch = (a, b, e) => a + (b - a) * e;
-const sanft = x => x*x*x*(x*(x*6 - 15) + 10);     // smootherstep
-
+const sanft = x => x*x*x*(x*(x*6 - 15) + 10);
 const blick = new THREE.Vector3();
+
 function kameraAuf(p, drehung = 0) {
   const e   = sanft(Math.min(1, Math.max(0, p)));
-  const r   = misch(27,       10.2,      e);
+  const r   = misch(29,       11,        e);
   const az  = misch(grad(42), grad(133), e) + drehung;
   const pol = misch(grad(26), grad(67),  e);
-  blick.set(0, misch(0.9, 1.35, e), 0);
+  blick.set(0, misch(0.9, 1.5, e), 0);
   kamera.position.set(
     blick.x + r * Math.sin(pol) * Math.cos(az),
     blick.y + r * Math.cos(pol),
@@ -333,91 +668,73 @@ let stufe = HERO;
 let uhrHero = 0, uhrFahrt = 0, uhrSpiel = 0;
 const FAHRT_DAUER = 7.5;
 
-// Drehbuch des Vorhangs: Dauer in Sekunden, Start- und Zielwert
 const PLAN = [
-  { d: 1.4, a: 0, b: 0, text: 'Vorhang geschlossen' },
-  { d: 3.4, a: 0, b: 1, text: 'Vorhang oeffnet' },
-  { d: 4.0, a: 1, b: 1, text: 'Vorhang offen, die Pferde fressen' },
-  { d: 3.4, a: 1, b: 0, text: 'Vorhang schliesst' },
-  { d: 4.0, a: 0, b: 0, text: 'Vorhang geschlossen' },
+  { d: 1.6, a: 0, b: 0 },              // zu
+  { d: 3.6, a: 0, b: 1 },              // oeffnet
+  { d: 4.2, a: 1, b: 1 },              // offen
+  { d: 3.6, a: 1, b: 0 },              // schliesst
+  { d: 4.2, a: 0, b: 0 },              // zu
 ];
 const PLAN_DAUER = PLAN.reduce((s, k) => s + k.d, 0);
 
-const eStand     = document.getElementById('stand');
-const eStandtext = document.getElementById('standtext');
-let letzterText = '';
-
-function spiele(zeit) {
+function planWert(zeit) {
   let z = zeit % PLAN_DAUER;
   for (const k of PLAN) {
-    if (z < k.d) {
-      vorhang(misch(k.a, k.b, sanft(z / k.d)));
-      if (k.text !== letzterText) {
-        letzterText = k.text;
-        eStandtext.textContent = k.text;
-        eStand.classList.toggle('offen', k.b === 1);
-      }
-      return;
-    }
+    if (z < k.d) return misch(k.a, k.b, sanft(z / k.d));
     z -= k.d;
   }
+  return 0;
 }
 
-const eHero = document.getElementById('hero');
-const eWink = document.getElementById('wink');
+const eHero    = document.getElementById('hero');
+const eWink    = document.getElementById('wink');
+const eWechsel = document.getElementById('wechsel');
+const btn = { 1: document.getElementById('btn1'), 2: document.getElementById('btn2') };
 
-function ueberspringe() {
-  stufe = SPIEL;
-  uhrSpiel = PLAN[0].d + PLAN[1].d;      // mitten im offenen Zustand
-  eHero.classList.add('weg');
-  eWink.classList.add('weg');
-  document.body.classList.add('film');
-  for (const id of ['titel', 'fuss', 'stand'])
-    document.getElementById(id).classList.add('da');
-  bahn.enabled = true;
-  bahn.autoRotate = true;
-  bahn.autoRotateSpeed = 0.25;
-}
-
-// ------------------------------------------------ Start durch Scrollen
-function starte() {
-  if (stufe !== HERO) return;
-  stufe = FAHRT;
-  eHero.classList.add('weg');
-  eWink.classList.add('weg');
-  setTimeout(() => {
-    document.body.classList.add('film');
-    scrollTo(0, 0);
-    document.getElementById('titel').classList.add('da');
-    document.getElementById('fuss').classList.add('da');
-  }, 700);
-}
-
-addEventListener('scroll', () => { if (scrollY > innerHeight * 0.12) starte(); },
-                 { passive: true });
-addEventListener('wheel', starte, { passive: true });
-// Echtes Vollbild braucht eine Nutzergeste. Ein Klick ist eine.
-// Scrollen ist keine, deshalb nur hier. Lehnt der Browser ab, laeuft
-// die Seite trotzdem randlos weiter.
 async function vollbild() {
-  const el = document.documentElement;
   try {
+    const el = document.documentElement;
     if (!document.fullscreenElement && el.requestFullscreen)
       await el.requestFullscreen({ navigationUI: 'hide' });
   } catch { /* Browser darf ablehnen */ }
 }
 
+function starte() {
+  if (stufe !== HERO) return;
+  stufe = FAHRT;
+  eHero.classList.add('weg');
+  eWink.classList.add('weg');
+  setTimeout(() => { document.body.classList.add('film'); scrollTo(0, 0); }, 700);
+}
+
+async function waehle(k) {
+  if (k === aktiv && gruppen[k]) return;
+  btn[1].disabled = btn[2].disabled = true;
+  await ladeVariante(k);
+  if (gruppen[aktiv]) gruppen[aktiv].visible = false;
+  aktiv = k;
+  gruppen[k].visible = true;
+  uhrSpiel = 0;
+  stelle(0, 0);
+  btn[1].classList.toggle('an', k === 1);
+  btn[2].classList.toggle('an', k === 2);
+  btn[1].disabled = btn[2].disabled = false;
+}
+
+btn[1].addEventListener('click', () => waehle(1));
+btn[2].addEventListener('click', () => waehle(2));
+
+addEventListener('scroll', () => { if (scrollY > innerHeight * 0.12) starte(); },
+                 { passive: true });
+addEventListener('wheel', starte, { passive: true });
 eWink.addEventListener('click', () => { vollbild(); starte(); });
 document.getElementById('geschenk')
         .addEventListener('click', () => { vollbild(); starte(); });
 addEventListener('keydown', ev => {
   if (['ArrowDown', 'PageDown', ' ', 'Enter'].includes(ev.key)) starte();
 });
-
-// Wer selbst dreht, uebernimmt die Kamera.
 bahn.addEventListener('start', () => { bahn.autoRotate = false; });
 
-// ------------------------------------------------ Schleife
 function passeAn() {
   const b = document.getElementById('szene').getBoundingClientRect();
   const w = Math.round(b.width)  || innerWidth;
@@ -434,27 +751,49 @@ document.addEventListener('fullscreenchange', () => setTimeout(passeAn, 60));
 if (window.visualViewport) visualViewport.addEventListener('resize', passeAn);
 passeAn();
 
+// ------------------------------------------------ Start
+const par = new URLSearchParams(location.search);
+const start = +par.get('variante') === 2 ? 2 : 1;
+ladeVariante(start).then(() => {
+  aktiv = start;
+  btn[1].classList.toggle('an', start === 1);
+  btn[2].classList.toggle('an', start === 2);
+  stelle(0, 0);
+  kameraAuf(0);
+  if (par.has('direkt')) {
+    stufe = SPIEL;
+    eHero.classList.add('weg'); eWink.classList.add('weg');
+    document.body.classList.add('film');
+    eWechsel.classList.add('da');
+    bahn.enabled = true; bahn.autoRotate = true; bahn.autoRotateSpeed = 0.25;
+    uhrSpiel = PLAN[0].d + PLAN[1].d + PLAN[2].d/2;
+    kameraAuf(1);
+  }
+  renderer.render(szene, kamera);
+});
+
+// ------------------------------------------------ Schleife
 const takt = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(takt.getDelta(), 0.1);
 
   if (stufe === HERO) {
-    uhrHero += dt * 0.05;                  // Modell dreht hinter dem Text
+    uhrHero += dt * 0.05;
     kameraAuf(0, uhrHero);
   } else if (stufe === FAHRT) {
     uhrFahrt += dt;
     kameraAuf(uhrFahrt / FAHRT_DAUER, uhrHero * (1 - uhrFahrt / FAHRT_DAUER));
     if (uhrFahrt >= FAHRT_DAUER) {
-      stufe = SPIEL;
-      uhrSpiel = 0;
+      stufe = SPIEL; uhrSpiel = 0;
       bahn.enabled = true;
-      bahn.autoRotate = true;
-      bahn.autoRotateSpeed = 0.25;
-      eStand.classList.add('da');
+      bahn.autoRotate = true; bahn.autoRotateSpeed = 0.25;
+      eWechsel.classList.add('da');
     }
   } else {
     uhrSpiel += dt;
-    spiele(uhrSpiel);
+    stelle(planWert(uhrSpiel), dt);
+    if (pferd) pferd.visible = true;
+    pferdSchritt(dt);
     bahn.update();
   }
 
